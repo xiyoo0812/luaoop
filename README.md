@@ -2,7 +2,7 @@
 一个 lua 面向对象机制的实现。
 
 # 依赖
-- lua5.2以上，（析构需要lua5.4）
+- [lua](https://github.com/xiyoo0812/lua.git)5.2以上，（析构需要lua5.4）
 
 # 功能
 - 支持class
@@ -26,7 +26,7 @@ local ACLASS = class("ACLASS")
 ```
 
 # 测试代码
-- 点击test/test.bat执行测试代码
+- lua test/oop_test.lua
 
 # 使用方法
 ```lua

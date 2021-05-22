@@ -1,11 +1,8 @@
 --oop_test.lua
-
-package.path = package.path .. ";../script/?.lua"
-
-require "enum"
-require "class"
-require "mixin"
-require "property"
+require "script.enum"
+require "script.class"
+require "script.mixin"
+require "script.property"
 
 local IObject = mixin(
     "test1",
