@@ -16,7 +16,7 @@ local setmetatable = setmetatable
 --类模板
 local class_tpls = class_tpls or {}
 
-local function _deep_copy(src, dst)
+local function deep_copy(src, dst)
     local ndst = dst or {}
     for key, value in pairs(src or {}) do
         if is_class(value) then
