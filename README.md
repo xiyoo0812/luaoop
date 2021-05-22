@@ -25,6 +25,9 @@ local ACLASS = class()
 local ACLASS = class("ACLASS")
 ```
 
+# 测试代码
+- 点击test/test.bat执行测试代码
+
 # 使用方法
 ```lua
 --enum枚举定义
