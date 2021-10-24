@@ -14,7 +14,7 @@ local getmetatable = getmetatable
 local setmetatable = setmetatable
 
 --类模板
-local class_tpls = class_tpls or {}
+local class_tpls = _ENV.class_tpls or {}
 
 local function deep_copy(src, dst)
     local ndst = dst or {}

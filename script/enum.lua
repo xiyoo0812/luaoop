@@ -25,7 +25,7 @@ local sformat       = string.format
 local dgetinfo      = debug.getinfo
 local setmetatable  = setmetatable
 
-local enum_tpls = enum_tpls or {}
+local enum_tpls     = _ENV.enum_tpls or {}
 
 local function enum_tostring(eo)
     return sformat("enum:%s(max:%s, elems: {%s})", eo.__name, eo.__vmax, tconcat(eo.__vlist, ","))

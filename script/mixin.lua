@@ -14,7 +14,7 @@ local dgetinfo      = debug.getinfo
 local sformat       = string.format
 local setmetatable  = setmetatable
 
-local mixin_tpls = mixin_tpls or {}
+local mixin_tpls    = _ENV.mixin_tpls or {}
 
 local function index(mixin, field)
     return mixin.__vtbl[field]
