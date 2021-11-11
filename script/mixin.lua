@@ -24,8 +24,11 @@ local function newindex(mixin, field, value)
     mixin.__vtbl[field] = value
 end
 
-local function invoke(object, method, ...)
-    local class = object.__class
+local function invoke(class, object, method, ...)
+    local _super = super(class)
+    if _super then
+        invoke(_super, object, method, ...)
+    end
     for _, mixin in ipairs(class.__mixins) do
         local mixin_method = mixin[method]
         if mixin_method then
@@ -38,18 +41,19 @@ local function invoke(object, method, ...)
 end
 
 --返回true表示所有接口都完成
-local function collect(object, method, ...)
-    local class = object.__class
+local function collect(class, object, method, ...)
+    local _super = super(class)
+    if _super then
+        if not collect(_super, object, method, ...) then
+            return false
+        end
+    end
     for _, mixin in ipairs(class.__mixins) do
         local mixin_method = mixin[method]
         if mixin_method then
             local ok, res = pcall(mixin_method, object, ...)
-            if not ok then
+            if (not ok) or (not res) then
                 error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__moudle, method, res))
-                return false
-            end
-            if not res then
-                print(sformat("mixin: %s collect '%s' failed: %s.", mixin.__moudle, method, res))
                 return false
             end
         end
@@ -59,8 +63,12 @@ end
 
 --代理一个类的所有接口，并检测接口是否实现
 function implemented(class, mixins)
-    class.invoke = invoke
-    class.collect = collect
+    class.invoke = function(object, method, ...)
+        invoke(object.__class, object, method, ...)
+    end
+    class.collect = function(object, method, ...)
+        collect(object.__class, object, method, ...)
+    end
     for _, mixin in ipairs(mixins) do
         --属性处理
         for name, value in pairs(mixin.__default) do
