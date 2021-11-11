@@ -6,13 +6,13 @@
 --]]
 local type      = type
 
-local ACCESSOR  = 1
-local WRITER    = 2
-local READER    = 3
+local WRITER    = 1
+local READER    = 2
+local ACCESSOR  = 3
 
 local function prop_accessor(prop, class, name, default, mode, cb)
     class.__default[name] = { default }
-    if mode <= READER then
+    if (mode & READER) == READER then
         class["get_" .. name] = function(self)
             if self[name] == nil then
                 return default
@@ -23,7 +23,7 @@ local function prop_accessor(prop, class, name, default, mode, cb)
             class["is_" .. name] = class["get_" .. name]
         end
     end
-    if mode <= WRITER then
+    if (mode & WRITER) == WRITER then
         class["set_" .. name] = function(self, value)
             if self[name] == nil or self[name] ~= value then
                 self[name] = value
