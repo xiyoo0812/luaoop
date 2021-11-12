@@ -92,7 +92,7 @@ function implemented(class, mixins)
                 end
             end
             if class[method] then
-                print(sformat("the mixin method %s has repeat implemented.", method))
+                print(sformat("the mixin method %s override implemented.", method))
                 goto continue
             end
             --接口代理
