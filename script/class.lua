@@ -70,12 +70,12 @@ local function object_defer(class, object, ...)
     end
 end
 
-local function object_default(class, object)
+local function object_props(class, object)
     if class.__super then
-        object_default(class.__super, object)
+        object_props(class.__super, object)
     end
-    local defaults = deep_copy(class.__default)
-    for name, param in pairs(defaults) do
+    local props = deep_copy(class.__props)
+    for name, param in pairs(props) do
         object[name] = param[1]
     end
 end
@@ -89,7 +89,7 @@ end
 
 local function object_constructor(class, ...)
     local obj = {}
-    object_default(class, obj)
+    object_props(class, obj)
     obj.__addr = ssub(tostring(obj), 7)
     local object = setmetatable(obj, class.__vtbl)
     object_init(class, object, ...)
@@ -155,7 +155,7 @@ local function class_constructor(class, super, ...)
         end
         class.__vtbl = vtbl
         class.__super = super
-        class.__default = {}
+        class.__props = {}
         class.__mixins = {}
         class_tpl = setmetatable(class, classMT)
         implemented(class, { ... })

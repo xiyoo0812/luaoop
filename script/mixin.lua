@@ -71,11 +71,11 @@ function implemented(class, mixins)
     end
     for _, mixin in ipairs(mixins) do
         --属性处理
-        for name, value in pairs(mixin.__default) do
-            if class.__default[name] then
+        for name, value in pairs(mixin.__props) do
+            if class.__props[name] then
                 print(sformat("the mixin default %s has repeat defined.", name))
             end
-            class.__default[name] = value
+            class.__props[name] = value
             local access_prefix = {"is_", "get_", "set_"}
             for _, prefix in pairs(access_prefix) do
                 local access_method = prefix .. name
@@ -122,7 +122,7 @@ function mixin(...)
     if not mixin_tpl then
         local mixin = {
             __vtbl = {},
-            __default = {},
+            __props = {},
             __moudle = moudle,
             __methods = { ... },
             __tostring = mixin_tostring,

@@ -11,7 +11,7 @@ local READER    = 2
 local ACCESSOR  = 3
 
 local function prop_accessor(prop, class, name, default, mode, notify)
-    class.__default[name] = { default }
+    class.__props[name] = { default, mode }
     if (mode & READER) == READER then
         class["get_" .. name] = function(self)
             if self[name] == nil then
