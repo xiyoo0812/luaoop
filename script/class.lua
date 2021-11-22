@@ -144,6 +144,7 @@ local function class_constructor(class, super, ...)
     if not class_tpl then
         local vtbl = {
             __class = class,
+            __super = super,
             __moudle = moudle,
             __tostring = object_tostring,
         }
@@ -172,8 +173,8 @@ function singleton(super, ...)
     return class_constructor({__singleton = true}, super, ...)
 end
 
-function super(class)
-    return rawget(class, "__super")
+function super(value)
+    return rawget(value, "__super")
 end
 
 function is_class(class)

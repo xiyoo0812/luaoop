@@ -67,7 +67,7 @@ function implemented(class, mixins)
         invoke(object.__class, object, method, ...)
     end
     class.collect = function(object, method, ...)
-        collect(object.__class, object, method, ...)
+        return collect(object.__class, object, method, ...)
     end
     for _, mixin in ipairs(mixins) do
         --属性处理
