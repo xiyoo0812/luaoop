@@ -30,12 +30,12 @@ local function prop_accessor(prop, class, name, default, mode, notify)
                 if notify then
                     local name_notify = "on_" .. name .. "_changed"
                     if self[name_notify] then
-                        self[name_notify](self, value)
+                        self[name_notify](self, value, name)
                         return
                     end
                     local common_notify = "on_prop_changed"
                     if self[common_notify] then
-                        self[common_notify](self, name, value)
+                        self[common_notify](self, value, name)
                     end
                 end
             end

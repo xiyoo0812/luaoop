@@ -17,11 +17,11 @@ local setmetatable  = setmetatable
 local mixin_tpls    = _ENV.mixin_tpls or {}
 
 local function index(mixin, field)
-    return mixin.__vtbl[field]
+    return mixin.__methods[field]
 end
 
 local function newindex(mixin, field, value)
-    mixin.__vtbl[field] = value
+    mixin.__methods[field] = value
 end
 
 local function invoke(class, object, method, ...)
@@ -70,36 +70,20 @@ function implemented(class, mixins)
         return collect(object.__class, object, method, ...)
     end
     for _, mixin in ipairs(mixins) do
-        --属性处理
         for name, value in pairs(mixin.__props) do
+            --属性处理
             if class.__props[name] then
                 print(sformat("the mixin default %s has repeat defined.", name))
             end
             class.__props[name] = value
-            local access_prefix = {"is_", "get_", "set_"}
-            for _, prefix in pairs(access_prefix) do
-                local access_method = prefix .. name
-                if mixin[access_method] then
-                    tinsert(mixin.__methods, access_method)
-                end
-            end
         end
-        for _, method in pairs(mixin.__methods) do
-            if not mixin[method] then
-                print(sformat("the mixin method %s hasn't implemented.", method))
-                mixin[method] = function()
-                    print(sformat("the mixin method %s hasn't implemented.", method))
+        for method in pairs(mixin.__methods) do
+            --接口代理
+            if not class[method] then
+                class[method] = function(...)
+                    return mixin[method](...)
                 end
             end
-            if class[method] then
-                print(sformat("the mixin method %s override implemented.", method))
-                goto continue
-            end
-            --接口代理
-            class[method] = function(...)
-                return mixin[method](...)
-            end
-            :: continue ::
         end
         tinsert(class.__mixins, mixin)
     end
@@ -115,16 +99,15 @@ local function mixin_tostring(mixin)
 end
 
 --接口定义函数
-function mixin(...)
+function mixin()
     local info = dgetinfo(2, "S")
     local moudle = info.short_src
     local mixin_tpl = mixin_tpls[moudle]
     if not mixin_tpl then
         local mixin = {
-            __vtbl = {},
             __props = {},
+            __methods = {},
             __moudle = moudle,
-            __methods = { ... },
             __tostring = mixin_tostring,
         }
         mixin_tpl = setmetatable(mixin, mixinMT)
