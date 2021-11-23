@@ -28,7 +28,7 @@ local function prop_accessor(prop, class, name, default, mode, notify)
             if self[name] == nil or self[name] ~= value then
                 self[name] = value
                 if notify then
-                    local name_notify = "on" .. name .. "changed"
+                    local name_notify = "on_" .. name .. "_changed"
                     if self[name_notify] then
                         self[name_notify](self, value)
                         return
