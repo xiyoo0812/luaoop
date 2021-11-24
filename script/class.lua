@@ -30,9 +30,12 @@ local function deep_copy(src, dst)
     return ndst
 end
 
-local function mixin_init(class, object, ...)
+local function object_init(class, object, ...)
     if class.__super then
-        mixin_init(class.__super, object, ...)
+        object_init(class.__super, object, ...)
+    end
+    if type(class.__init) == "function" then
+        class.__init(object, ...)
     end
     for _, mixin in ipairs(class.__mixins) do
         if type(mixin.__init) == "function" then
@@ -42,17 +45,12 @@ local function mixin_init(class, object, ...)
     return object
 end
 
-local function object_init(class, object, ...)
-    if class.__super then
-        object_init(class.__super, object, ...)
-    end
-    if type(class.__init) == "function" then
-        class.__init(object, ...)
-    end
-    return object
-end
-
 local function object_release(class, object, ...)
+    for _, mixin in ipairs(class.__mixins) do
+        if type(mixin.__release) == "function" then
+            mixin.__release(object, ...)
+        end
+    end
     if type(class.__release) == "function" then
         class.__release(object, ...)
     end
@@ -62,6 +60,11 @@ local function object_release(class, object, ...)
 end
 
 local function object_defer(class, object, ...)
+    for _, mixin in ipairs(class.__mixins) do
+        if type(mixin.__defer) == "function" then
+            mixin.__defer(object, ...)
+        end
+    end
     if type(class.__defer) == "function" then
         class.__defer(object, ...)
     end
@@ -93,11 +96,14 @@ local function object_constructor(class, ...)
     obj.__addr = ssub(tostring(obj), 7)
     local object = setmetatable(obj, class.__vtbl)
     object_init(class, object, ...)
-    mixin_init(class, object, ...)
     return object
 end
 
-local function new(class, ...)
+local function object_super(obj)
+    return obj.__super
+end
+
+local function mt_class_new(class, ...)
     if class.__singleton then
         local inst_obj = rawget(class, "__inst")
         if not inst_obj then
@@ -115,26 +121,26 @@ local function new(class, ...)
     end
 end
 
-local function index(class, field)
+local function mt_class_index(class, field)
     return class.__vtbl[field]
 end
 
-local function newindex(class, field, value)
+local function mt_class_newindex(class, field, value)
     class.__vtbl[field] = value
 end
 
-local function release(obj)
+local function mt_object_release(obj)
     object_release(obj.__class, obj)
 end
 
-local function defer(obj)
+local function mt_object_defer(obj)
     object_defer(obj.__class, obj)
 end
 
 local classMT = {
-    __call = new,
-    __index = index,
-    __newindex = newindex
+    __call = mt_class_new,
+    __index = mt_class_index,
+    __newindex = mt_class_newindex
 }
 
 local function class_constructor(class, super, ...)
@@ -147,10 +153,11 @@ local function class_constructor(class, super, ...)
             __super = super,
             __moudle = moudle,
             __tostring = object_tostring,
+            super = object_super,
         }
-        vtbl.__gc = release
-        vtbl.__close = defer
         vtbl.__index = vtbl
+        vtbl.__gc = mt_object_release
+        vtbl.__close = mt_object_defer
         if super then
             setmetatable(vtbl, {__index = super})
         end
@@ -174,7 +181,7 @@ function singleton(super, ...)
 end
 
 function super(value)
-    return rawget(value, "__super")
+    return value.__super
 end
 
 function is_class(class)

@@ -1,14 +1,19 @@
 --mixin.lua
 --[[提供混入机制
 示例:
-    Execute = mixin(nil, "execute")
+    Execute = mixin()
     Listener = class(nil, Listener)
+说明：
+    mixin声明的成员自动附加到主类
+    mixin声明的函数(除带下划线的私有方法)自动附加到主类
+    mixin声明的__init/__release/__defer方法会随主类调用
 备注：
     mixin类似多继承，但是继承强调i'am，而mixin强调i'can.
     mixin无法实例化，必须依附到class上，mixin函数的self都是属主class对象
 --]]
 local pcall         = pcall
 local pairs         = pairs
+local ssub          = string.sub
 local tinsert       = table.insert
 local dgetinfo      = debug.getinfo
 local sformat       = string.format
@@ -25,9 +30,8 @@ local function newindex(mixin, field, value)
 end
 
 local function invoke(class, object, method, ...)
-    local _super = super(class)
-    if _super then
-        invoke(_super, object, method, ...)
+    if class.__super then
+        invoke(class.__super, object, method, ...)
     end
     for _, mixin in ipairs(class.__mixins) do
         local mixin_method = mixin[method]
@@ -42,9 +46,8 @@ end
 
 --返回true表示所有接口都完成
 local function collect(class, object, method, ...)
-    local _super = super(class)
-    if _super then
-        if not collect(_super, object, method, ...) then
+    if class.__super then
+        if not collect(class.__super, object, method, ...) then
             return false
         end
     end
@@ -78,12 +81,19 @@ function implemented(class, mixins)
             class.__props[name] = value
         end
         for method in pairs(mixin.__methods) do
-            --接口代理
-            if not class[method] then
-                class[method] = function(...)
-                    return mixin[method](...)
-                end
+            if ssub(method, 1, 1) = "_") then
+                --下划线前缀方法不代理
+                goto continue
             end
+            if class[method] then
+                print(sformat("the mixin default %s has repeat defined.", name))
+                goto continue
+            end
+            --接口代理
+            class[method] = function(...)
+                return mixin[method](...)
+            end
+            :: continue ::
         end
         tinsert(class.__mixins, mixin)
     end
