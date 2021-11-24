@@ -34,9 +34,9 @@ local function prop_accessor(prop, class, name, default, mode, watch, unfold)
             for key in pairs(default) do
                 if type(key) == "string" then
                     class["get_" .. name .. "_" .. key] = function(self)
-                        local prop = self[name]
-                        if prop then
-                            return prop[key]
+                        local prop_value = self[name]
+                        if prop_value then
+                            return prop_value[key]
                         end
                     end
                 end
@@ -44,7 +44,6 @@ local function prop_accessor(prop, class, name, default, mode, watch, unfold)
         end
     end
     if (mode & WRITER) == WRITER then
-        local function
         class["set_" .. name] = function(self, value)
             if self[name] ~= value then
                 self[name] = value
@@ -57,11 +56,11 @@ local function prop_accessor(prop, class, name, default, mode, watch, unfold)
             for key in pairs(default) do
                 if type(key) == "string" then
                     class["set_" .. name .. "_" .. key] = function(self, value)
-                        local prop = self[name]
-                        if prop and prop[key] ~= value then
-                            prop[key] = value
+                        local prop_value = self[name]
+                        if prop_value and prop_value[key] ~= value then
+                            prop_value[key] = value
                             if watch then
-                                on_prop_changed(self, name, prop)
+                                on_prop_changed(self, name, prop_value)
                             end
                         end
                     end

@@ -81,12 +81,12 @@ function implemented(class, mixins)
             class.__props[name] = value
         end
         for method in pairs(mixin.__methods) do
-            if ssub(method, 1, 1) = "_") then
+            if ssub(method, 1, 1) == "_" then
                 --下划线前缀方法不代理
                 goto continue
             end
             if class[method] then
-                print(sformat("the mixin default %s has repeat defined.", name))
+                print(sformat("the mixin method %s has repeat defined.", method))
                 goto continue
             end
             --接口代理
