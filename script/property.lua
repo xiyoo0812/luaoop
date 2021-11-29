@@ -5,24 +5,36 @@
     prop:accessor("name", "")
 --]]
 local type      = type
+local tpack     = table.pack
+local tunpack   = table.unpack
+local tsort     = table.sort
+local tinsert   = table.insert
 
 local WRITER    = 1
 local READER    = 2
 local ACCESSOR  = 3
 
-local function on_prop_changed(object, name, value)
-    local on_watch = "on_" .. name .. "_changed"
-    if object[on_watch] then
-        object[on_watch](object, value, name)
-        return
+local function unequal(a, b)
+    if type(a) ~= "table" then
+        return a == b
     end
-    if object["on_prop_changed"] then
-        object["on_prop_changed"](object, value, name)
+    for k, v in pairs(a) do
+        if b[k] ~= v then
+            return false
+        end
+    end
+    return true
+end
+
+local function on_prop_changed(object, name, value)
+    local on_prop_changed = object.on_prop_changed
+    if on_prop_changed then
+        on_prop_changed(object, value, name)
     end
 end
 
-local function prop_accessor(prop, class, name, default, mode, watch, unfold)
-    class.__props[name] = { default, mode }
+local function prop_accessor(class, name, default, mode, watch)
+    class.__props[name] = tpack(default, mode, watch)
     if (mode & READER) == READER then
         class["get_" .. name] = function(self)
             return self[name]
@@ -30,64 +42,120 @@ local function prop_accessor(prop, class, name, default, mode, watch, unfold)
         if type(default) == "boolean" then
             class["is_" .. name] = class["get_" .. name]
         end
-        if unfold and type(default) == "table" then
-            for key in pairs(default) do
-                if type(key) == "string" then
-                    class["get_" .. name .. "_" .. key] = function(self)
-                        local prop_value = self[name]
-                        if prop_value then
-                            return prop_value[key]
-                        end
-                    end
-                end
-            end
-        end
     end
     if (mode & WRITER) == WRITER then
-        class["set_" .. name] = function(self, value)
-            if self[name] ~= value then
+        class["set_" .. name] = function(self, value, ...)
+            local n = select("#", ...)
+            if n > 0 then
+                print("set prop args is so more!")
+            end
+            if unequal(self[name], value) then
                 self[name] = value
                 if watch then
                     on_prop_changed(self, name, value)
                 end
             end
         end
-        if unfold and type(default) == "table" then
-            for key in pairs(default) do
-                if type(key) == "string" then
-                    class["set_" .. name .. "_" .. key] = function(self, value)
-                        local prop_value = self[name]
-                        if prop_value and prop_value[key] ~= value then
-                            prop_value[key] = value
-                            if watch then
-                                on_prop_changed(self, name, prop_value)
-                            end
+    end
+end
+
+local function prop_unfold(class, name, sub_keys)
+    local prop_inf = class.__props[name]
+    if not prop_inf then
+        return
+    end
+    local default, mode, watch = tunpack(prop_inf)
+    if default and type(default) ~= "table" then
+        return
+    end
+    if not sub_keys then
+        sub_keys = {}
+        for key, _ in pairs(default) do
+            tinsert(sub_keys, key)
+        end
+        tsort(sub_keys, function(a, b)
+            return a < b
+        end)
+    end
+    if #sub_keys < 2 then
+        return
+    end
+    if (mode & READER) == READER then
+        class["get_" .. name] = function(self, unfold)
+            local prop = self[name]
+            if prop and unfold  then
+                local tres = {}
+                for i, key in pairs(sub_keys) do
+                    tres[i] = prop[key]
+                end
+                return tunpack(tres, 1, #sub_keys)
+            end
+            return prop
+        end
+        for _, key in pairs(sub_keys) do
+            class["get_" .. name .. "_" .. key] = function(self)
+                local prop = self[name]
+                if prop then
+                    return prop[key]
+                end
+            end
+        end
+    end
+    if (mode & WRITER) == WRITER then
+        for _, key in pairs(sub_keys) do
+            class["set_" .. name .. "_" .. key] = function(self, value)
+                local prop = self[name]
+                if prop and if unequal(prop[key], value) then
+                    prop[key] = value
+                    if watch then
+                        on_prop_changed(self, name, prop)
+                    end
+                end
+            end
+        end
+        class["set_" .. name] = function(self, ...)
+            local args, changed = { ... }
+            local n = select("#", ...)
+            if n == 1 then
+                local value = args[1]
+                if type(value) == "table" and unequal(self[name], value) then
+                    self[name] = value
+                    changed = value
+                end
+            else
+                if not self[name] then
+                    self[name] = {}
+                end
+                local prop = self[name]
+                for i = 1, n do
+                    local key, value = sub_keys[i], args[i]
+                    if key and unequal(prop[key], value) then
+                        prop[key] = value
+                        if not changed then
+                            changed = prop
                         end
                     end
                 end
+            end
+            if watch and changed then
+                on_prop_changed(self, name, changed)
             end
         end
     end
 end
 
 local property_reader = function(self, name, default)
-    prop_accessor(self, self.__class, name, default, READER)
+    prop_accessor(self.__class, name, default, READER)
 end
 local property_writer = function(self, name, default, watch)
-    prop_accessor(self, self.__class, name, default, WRITER, watch)
+    prop_accessor(self.__class, name, default, WRITER, watch)
 end
 local property_accessor = function(self, name, default, watch)
-    prop_accessor(self, self.__class, name, default, ACCESSOR, watch)
+    prop_accessor(self.__class, name, default, ACCESSOR, watch)
 end
 
-local unfold_property_reader = function(self, name, default)
-    prop_accessor(self, self.__class, name, default, READER, false, true)
-end
-local unfold_property_writer = function(self, name, default, watch)
-    prop_accessor(self, self.__class, name, default, WRITER, watch, true)
-end
-local unfold_property_accessor = function(self, name, default, watch)
-    prop_accessor(self, self.__class, name, default, ACCESSOR, watch, true)
+local property_unfold = function(self, name, sub_keys)
+    prop_unfold(self.__class, name, sub_keys)
 end
 
 function property(class)
@@ -96,9 +164,7 @@ function property(class)
         reader = property_reader,
         writer = property_writer,
         accessor = property_accessor,
-        unfold_reader = unfold_property_reader,
-        unfold_writer = unfold_property_writer,
-        unfold_accessor = unfold_property_accessor,
+        unfold = property_unfold,
     }
     return prop
 end
