@@ -16,14 +16,14 @@ local ACCESSOR  = 3
 
 local function unequal(a, b)
     if type(a) ~= "table" then
-        return a == b
+        return a ~= b
     end
     for k, v in pairs(a) do
         if b[k] ~= v then
-            return false
+            return true
         end
     end
-    return true
+    return false
 end
 
 local function on_prop_changed(object, name, value)
@@ -105,7 +105,7 @@ local function prop_unfold(class, name, sub_keys)
         for _, key in pairs(sub_keys) do
             class["set_" .. name .. "_" .. key] = function(self, value)
                 local prop = self[name]
-                if prop and if unequal(prop[key], value) then
+                if prop and unequal(prop[key], value) then
                     prop[key] = value
                     if watch then
                         on_prop_changed(self, name, prop)
