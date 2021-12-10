@@ -104,7 +104,7 @@ local function object_super(obj)
 end
 
 local function mt_class_new(class, ...)
-    if class.__singleton then
+    if rawget(class, "__singleton") then
         local inst_obj = rawget(class, "__inst")
         if not inst_obj then
             inst_obj = object_constructor(class, ...)

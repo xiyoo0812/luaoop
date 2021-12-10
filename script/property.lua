@@ -27,9 +27,9 @@ local function unequal(a, b)
 end
 
 local function on_prop_changed(object, name, value)
-    local on_prop_changed = object.on_prop_changed
-    if on_prop_changed then
-        on_prop_changed(object, value, name)
+    local f_prop_changed = object.on_prop_changed
+    if f_prop_changed then
+        f_prop_changed(object, value, name)
     end
 end
 
