@@ -14,7 +14,6 @@
 local pcall         = pcall
 local pairs         = pairs
 local ssub          = string.sub
-local tinsert       = table.insert
 local dgetinfo      = debug.getinfo
 local sformat       = string.format
 local setmetatable  = setmetatable
@@ -95,7 +94,8 @@ function implemented(class, mixins)
             end
             :: continue ::
         end
-        tinsert(class.__mixins, mixin)
+        local minixs = class.__mixins
+        minixs[#minixs + 1] = mixin
     end
 end
 

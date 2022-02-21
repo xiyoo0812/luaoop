@@ -8,7 +8,6 @@ local type      = type
 local tpack     = table.pack
 local tunpack   = table.unpack
 local tsort     = table.sort
-local tinsert   = table.insert
 
 local WRITER    = 1
 local READER    = 2
@@ -70,8 +69,8 @@ local function prop_unfold(class, name, sub_keys)
     end
     if not sub_keys then
         sub_keys = {}
-        for key, _ in pairs(default) do
-            tinsert(sub_keys, key)
+        for key in pairs(default) do
+            sub_keys[#sub_keys + 1] = key
         end
         tsort(sub_keys, function(a, b)
             return a < b
