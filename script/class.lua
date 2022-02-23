@@ -87,13 +87,13 @@ local function object_tostring(object)
     if type(object.tostring) == "function" then
         return object:tostring()
     end
-    return sformat("class:%s(%s)", object.__moudle, object.__addr)
+    return sformat("class(%s)[%s]", object.__addr, object.__source)
 end
 
 local function object_constructor(class, ...)
     local obj = {}
     object_props(class, obj)
-    obj.__addr = ssub(tostring(obj), 7)
+    obj.__addr = ssub(tostring(obj), 8)
     local object = setmetatable(obj, class.__vtbl)
     object_init(class, object, ...)
     return object
@@ -101,6 +101,10 @@ end
 
 local function object_super(obj)
     return obj.__super
+end
+
+local function object_source(obj)
+    return obj.__source
 end
 
 local function mt_class_new(class, ...)
@@ -145,15 +149,16 @@ local classMT = {
 
 local function class_constructor(class, super, ...)
     local info = dgetinfo(2, "S")
-    local moudle = info.short_src
-    local class_tpl = class_tpls[moudle]
+    local source = info.short_src
+    local class_tpl = class_tpls[source]
     if not class_tpl then
         local vtbl = {
             __class = class,
             __super = super,
-            __moudle = moudle,
+            __source = source,
             __tostring = object_tostring,
             super = object_super,
+            source = object_source,
         }
         vtbl.__index = vtbl
         vtbl.__gc = mt_object_release
@@ -167,7 +172,7 @@ local function class_constructor(class, super, ...)
         class.__mixins = {}
         class_tpl = setmetatable(class, classMT)
         implemented(class, { ... })
-        class_tpls[moudle] = class_tpl
+        class_tpls[source] = class_tpl
     end
     return class_tpl
 end

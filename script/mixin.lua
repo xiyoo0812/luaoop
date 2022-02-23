@@ -37,7 +37,7 @@ local function invoke(class, object, method, ...)
         if mixin_method then
             local ok, res = pcall(mixin_method, object, ...)
             if not ok then
-                error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__moudle, method, res))
+                error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__source, method, res))
             end
         end
     end
@@ -55,7 +55,7 @@ local function collect(class, object, method, ...)
         if mixin_method then
             local ok, res = pcall(mixin_method, object, ...)
             if (not ok) or (not res) then
-                error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__moudle, method, res))
+                error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__source, method, res))
                 return false
             end
         end
@@ -105,23 +105,23 @@ local mixinMT = {
 }
 
 local function mixin_tostring(mixin)
-    return sformat("mixin:%s", mixin.__moudle)
+    return sformat("mixin:%s", mixin.__source)
 end
 
 --接口定义函数
 function mixin()
     local info = dgetinfo(2, "S")
-    local moudle = info.short_src
-    local mixin_tpl = mixin_tpls[moudle]
+    local source = info.short_src
+    local mixin_tpl = mixin_tpls[source]
     if not mixin_tpl then
         local mixin = {
             __props = {},
             __methods = {},
-            __moudle = moudle,
+            __source = source,
             __tostring = mixin_tostring,
         }
         mixin_tpl = setmetatable(mixin, mixinMT)
-        mixin_tpls[moudle] = mixin_tpl
+        mixin_tpls[source] = mixin_tpl
     end
     return mixin_tpl
 end

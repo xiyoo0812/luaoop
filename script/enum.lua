@@ -86,15 +86,15 @@ end
 
 local function new(ems, name, base, ...)
     local info = dgetinfo(2, "S")
-    local moudle = info.short_src
+    local source = info.short_src
     local lists = enum_list(ems)
     local eobj = lists[name]
     if eobj then
-        if eobj.__moudle ~= moudle then
-            print("enum %s redefined! moudle:%s", name, moudle)
+        if eobj.__source ~= source then
+            print("enum %s redefined! source:%s", name, source)
         end
     else
-        eobj = { __name = name, __moudle = moudle }
+        eobj = { __name = name, __source = source }
     end
     enum_init(eobj, base, ...)
     setmetatable(eobj, enumMT)
