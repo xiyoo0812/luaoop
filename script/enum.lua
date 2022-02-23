@@ -1,7 +1,7 @@
 --enum.lua
 --[[提供枚举机制
 示例:
-    local enum = require(enum)
+    require(enum)
     用法1：
     local TEST1 = enum("TEST1", 0, "ONE", "THREE", "TWO")
     print(TEST1.TWO)
@@ -52,8 +52,10 @@ local function enum_newindex(emobj, field, value)
         print("enum %s redefine field %s!", emobj.__name, field)
     end
     vlist[field] = value
-    if value >= emobj.__vmax then
-        emobj.__vmax = value + 1
+    if type(value) == "number" then
+        if value >= emobj.__vmax then
+            emobj.__vmax = value + 1
+        end
     end
 end
 

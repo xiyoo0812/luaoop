@@ -1,9 +1,12 @@
---[[property.lua
+--property.lua
+--[[提供对象属性机制
+示例:
     local Object = class()
     prop = property(Object)
     prop:reader("id", 0)
     prop:accessor("name", "")
 --]]
+
 local type      = type
 local tpack     = table.pack
 local tunpack   = table.unpack
