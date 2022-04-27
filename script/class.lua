@@ -90,13 +90,12 @@ local function object_tostring(object)
     return sformat("class(%s)[%s]", object.__addr, object.__source)
 end
 
-local function object_constructor(class, ...)
+local function object_constructor(class)
     local obj = {}
     object_props(class, obj)
     obj.__addr = ssub(tostring(obj), 8)
-    local object = setmetatable(obj, class.__vtbl)
-    object_init(class, object, ...)
-    return object
+    setmetatable(obj, class.__vtbl)
+    return obj
 end
 
 local function object_super(obj)
@@ -109,19 +108,19 @@ end
 
 local function mt_class_new(class, ...)
     if rawget(class, "__singleton") then
-        local inst_obj = rawget(class, "__inst")
-        if not inst_obj then
-            inst_obj = object_constructor(class, ...)
-            --定义单例方法
-            local inst_func = function()
-                return inst_obj
-            end
-            rawset(class, "__inst", inst_obj)
-            rawset(class, "inst", inst_func)
+        local object = rawget(class, "__inst")
+        if not object then
+            object = object_constructor(class)
+            rawset(class, "__inst", object)
+            rawset(class, "inst", function()
+                return object
+            end)
+            object_init(class, object, ...)
         end
-        return inst_obj
+        return object
     else
-        return object_constructor(class, ...)
+        local object = object_constructor(class)
+        return object_init(class, object, ...)
     end
 end
 
