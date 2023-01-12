@@ -1,20 +1,34 @@
 --class.lua
-local type          = type
-local load          = load
-local pcall         = pcall
-local pairs         = pairs
-local ipairs        = ipairs
-local rawget        = rawget
-local rawset        = rawset
-local tostring      = tostring
-local ssub          = string.sub
-local sformat       = string.format
-local dgetinfo      = debug.getinfo
-local getmetatable  = getmetatable
-local setmetatable  = setmetatable
+local type      = type
+local load      = load
+local pcall     = pcall
+local pairs     = pairs
+local ipairs    = ipairs
+local rawget    = rawget
+local rawset    = rawset
+local tostring  = tostring
+local ssub      = string.sub
+local sformat   = string.format
+local dgetinfo  = debug.getinfo
+local getmetatable = getmetatable
+local setmetatable = setmetatable
 
 --类模板
 local class_tpls = _ENV.class_tpls or {}
+
+local function deep_copy(src, dst)
+    local ndst = dst or {}
+    for key, value in pairs(src or {}) do
+        if is_class(value) then
+            ndst[key] = value()
+        elseif (type(value) == "table") then
+            ndst[key] = deep_copy(value)
+        else
+            ndst[key] = value
+        end
+    end
+    return ndst
+end
 
 local function class_raw_call(method, class, object, ...)
     local func = rawget(class.__vtbl, method)
@@ -61,11 +75,13 @@ local function object_props(class, object)
     if class.__super then
         object_props(class.__super, object)
     end
-    for name, param in pairs(class.__props) do
+    for name, args in pairs(class.__props) do
+        local param = deep_copy(args)
         object[name] = param[1]
     end
     for _, mixin in ipairs(class.__mixins) do
-        for name, param in pairs(mixin.__props) do
+        for name, args in pairs(mixin.__props) do
+            local param = deep_copy(args)
             object[name] = param[1]
         end
     end
