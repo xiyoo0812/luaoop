@@ -23,7 +23,7 @@ local sformat       = string.format
 local setmetatable  = setmetatable
 local dtraceback    = debug.traceback
 
-local mixin_tpls    = _ENV.mixin_tpls or {}
+local mixin_tpls    = _ENV.__mixins or {}
 
 local function tab_copy(src, dst)
     local ndst = dst or {}
@@ -40,9 +40,9 @@ local function invoke(class, object, method, ...)
     for _, mixin in ipairs(class.__mixins) do
         local mixin_method = mixin[method]
         if mixin_method then
-            local ok, res = xpcall(mixin_method, dtraceback, object, ...)
+            local ok, err = xpcall(mixin_method, dtraceback, object, ...)
             if not ok then
-                error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__source, method, res))
+                error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__source, method, err))
             end
         end
     end
@@ -58,9 +58,9 @@ local function collect(class, object, method, ...)
     for _, mixin in ipairs(class.__mixins) do
         local mixin_method = mixin[method]
         if mixin_method then
-            local ok, res = xpcall(mixin_method, dtraceback, object, ...)
-            if (not ok) or (not res) then
-                error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__source, method, res))
+            local ok, err = xpcall(mixin_method, dtraceback, object, ...)
+            if not ok then
+                error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__source, method, err))
                 return false
             end
         end
@@ -194,3 +194,5 @@ function mixin(super)
     end
     return mixin_tpl
 end
+
+_ENV.__mixins = mixin_tpls
