@@ -36,5 +36,8 @@ local obj = Object()
 obj:run()
 obj:_run()
 obj:_sub_test("main")
+obj.key4 = 6
+obj:set_key4(16)
+print("key4", obj:get_key4())
 
 return Object

@@ -13,6 +13,7 @@ function Base:__release()
 end
 
 function Base:setup()
+    self.key2 = 8
     print("Base:setup", self)
 end
 

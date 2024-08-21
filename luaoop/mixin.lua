@@ -130,9 +130,8 @@ local function delegate_one(class, mixin)
         delegate_func(class, mixin, method)
     end
     local cmixins = class.__mixins
-    local mowners = mixin.__owners
     cmixins[#cmixins + 1] = mixin
-    mowners[#mowners + 1] = class
+    mixin.__owners[class] = true
 end
 
 --判定是否已经被代理
@@ -184,12 +183,20 @@ end
 local function mt_newindex(mixin, field, value)
     mixin.__methods[field] = value
     --新增方法代理
-    for _, class in pairs(mixin.__owners) do
+    for class in pairs(mixin.__owners) do
         delegate_func(class, mixin, field)
     end
 end
 
+local function mt_equal(mixin, other)
+    if mixin.__name == other.__name then
+        return true
+    end
+    return mixin.__owners[other] 
+end
+
 local mixinMT = {
+    __eq = mt_equal,
     __close = mt_close,
     __index = mt_index,
     __newindex = mt_newindex,

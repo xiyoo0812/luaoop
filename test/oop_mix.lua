@@ -32,6 +32,8 @@ function Mix:setup()
 end
 
 function Mix:test2()
+    self.key2 = 8
+    self.key4 = 9
     print("key2", self.key2)
 end
 

@@ -109,19 +109,12 @@ local function object_props(class, obj)
     end
 end
 
-local function object_tostring(obj)
-    if type(obj.tostring) == "function" then
-        return object:tostring()
-    end
-    return sformat("%s[%s]", obj.__name, obj.__addr)
-end
-
 local function object_constructor(class)
-    local obj = {}
+    local obj = { __props = {}}
     class.__count = class.__count + 1
-    object_props(class, obj)
     obj.__addr = ssub(tostring(obj), 8)
     setmetatable(obj, class.__vtbl)
+    object_props(class, obj)
     return obj
 end
 
@@ -138,6 +131,7 @@ local function object_address(obj)
 end
 
 local function mt_class_new(class, ...)
+    local _<close> = class_stack(class)
     if rawget(class, "__singleton") then
         local obj = rawget(class, "__inst")
         if not obj then
@@ -185,6 +179,23 @@ local function mt_class_newindex(class, method, valfunc)
     end
 end
 
+local function mt_class_equal(class, other)
+    while other do
+        if other.__name == class.__name then
+            return true
+        end
+        other = other.__super
+    end
+    return false
+end
+
+local function mt_object_index(obj, field)
+    local val = obj.__props[field]
+    if val then return val end
+    local mt = getmetatable(obj)
+    return mt[field]
+end
+
 local function mt_object_release(obj)
     local class = obj.__class
     class.__count = class.__count - 1
@@ -195,7 +206,23 @@ local function mt_object_defer(obj)
     object_defer(obj.__class, obj)
 end
 
+local function mt_object_newindex(obj, field, value)
+    if _G.__stack_cls == obj.__class then
+        obj.__props[field] = value
+        return
+    end
+    print(sformat("%s's field %s out of storage range.", obj.__name, field))
+end
+
+local function mt_object_tostring(obj)
+    if type(obj.tostring) == "function" then
+        return object:tostring()
+    end
+    return sformat("%s[%s]", obj.__name, obj.__addr)
+end
+
 local classMT = {
+    __eq = mt_class_equal,
     __call = mt_class_new,
     __close = mt_class_close,
     __index = mt_class_index,
@@ -213,14 +240,15 @@ local function class_constructor(class, super, ...)
             __super = super,
             __source = source,
             __name = class_name,
-            __tostring = object_tostring,
+            __gc = mt_object_release,
+            __close = mt_object_defer,
+            __index = mt_object_index,
+            __tostring = mt_object_tostring,
+            __newindex = mt_object_newindex,
             super = object_super,
             source = object_source,
             address = object_address
         }
-        vtbl.__index = vtbl
-        vtbl.__gc = mt_object_release
-        vtbl.__close = mt_object_defer
         if super then
             setmetatable(vtbl, {__index = super})
         end
