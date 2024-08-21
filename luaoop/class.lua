@@ -17,6 +17,16 @@ local setmetatable = setmetatable
 --类模板
 local class_tpls = _ENV.__classes or {}
 
+--栈对象
+local stack_nil = { __name = "null" }
+setmetatable(stack_nil, { __close = function() _G.__stack_cls = stack_nil end})
+
+local function class_stack(cls)
+    local old = _G.__stack_cls
+    _G.__stack_cls = cls
+    return old
+end
+
 local function deep_copy(src, dst)
     local ndst = dst or {}
     for key, value in pairs(src or {}) do
@@ -42,8 +52,7 @@ local function class_mixin_call(method, class, obj, ...)
     for _, mixin in ipairs(class.__mixins) do
         local mixin_base_func = rawget(mixin.__methods, method)
         if mixin_base_func then
-            local _<close> = _G.__stack
-            _G.__stack = mixin
+            local _<close> = class_stack(mixin)
             mixin_base_func(obj, ...)
         end
     end
@@ -147,7 +156,7 @@ local function mt_class_new(class, ...)
 end
 
 local function mt_class_close(class)
-    _G.__stack = class
+    _G.__stack_cls = class
 end
 
 local function mt_class_index(class, method)
@@ -160,21 +169,19 @@ local function mt_class_newindex(class, method, valfunc)
         return
     end
     if ssub(method, 1, 1) ~= "_" or ssub(method, 1, 2) == "__" then
-        class.__vtbl[method] = function(obj, ...)
-            local _<close> = _G.__stack
-            _G.__stack = class
-            return valfunc(obj, ...)
+        class.__vtbl[method] = function(...)
+            local _<close> = class_stack(class)
+            return valfunc(...)
         end
         return
     end
-    class.__vtbl[method] = function(obj, ...)
-        local stack<close> = _G.__stack
+    class.__vtbl[method] = function(...)
+        local stack<close> = class_stack(class)
         if stack ~= class then
-            print(sformat("%s's method %s is private method.", obj.__name, method))
+            print(sformat("%s's method %s is private method.", class.__name, method))
             return
         end
-        _G.__stack = class
-        return valfunc(obj, ...)
+        return valfunc(...)
     end
 end
 
@@ -249,27 +256,6 @@ function classof(obj)
     return obj.__class
 end
 
-function is_subclass(class, super)
-    while class do
-        if class == super then
-            return true
-        end
-        class = rawget(class, "__super")
-    end
-    return false
-end
-
-function instanceof(obj, class)
-    if not obj or not class then
-        return false
-    end
-    local obj_class = obj.__class
-    if obj_class then
-        return is_subclass(obj_class, class)
-    end
-    return false
-end
-
 function conv_class(name)
     local runtime = sformat("local obj = %s() return obj", name)
     local ok, obj = pcall(load(runtime))
@@ -288,6 +274,5 @@ function class_review()
     return review
 end
 
-local null = { __name = "null" }
-_G.__stack = setmetatable(null, { __close = function() _G.__stack = null end})
 _ENV.__classes = class_tpls
+_ENV.__stack_cls = stack_nil

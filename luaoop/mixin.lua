@@ -34,12 +34,12 @@ local function tab_copy(src, dst)
     return ndst
 end
 
-local function mixin_call(mixin, method, obj, ...)
+local function mixin_call(mixin, method, ...)
     local mixin_method = mixin[method]
     if mixin_method then
-        local _<close> = _G.__stack
-        _G.__stack = mixin
-        return mixin_method(obj, ...)
+        local _<close> = _G.__stack_cls
+        _G.__stack_cls = mixin
+        return mixin_method(...)
     end
 end
 
@@ -99,19 +99,19 @@ local function delegate_func(class, mixin, method)
             return
         end
         --接口代理
-        vtbl[method] = function(obj, ...)
-            return mixin_call(mixin, method, obj, ...)
+        vtbl[method] = function(...)
+            return mixin_call(mixin, method, ...)
         end
         return
     end
     --私有接口代理
     if not class[method] then
-        vtbl[method] = function(obj, ...)
-            if mixin ~= _G.__stack then
-                print(sformat("%s's method %s is private method.", obj.__name, method))
+        vtbl[method] = function(...)
+            if mixin ~= _G.__stack_cls then
+                print(sformat("%s's method %s is private method.", mixin.__name, method))
                 return
             end
-            return mixin_call(mixin, method, obj, ...)
+            return mixin_call(mixin, method, ...)
         end
     end
 end
@@ -174,7 +174,7 @@ function implemented(class, ...)
 end
 
 local function mt_close(mixin)
-    _G.__stack = mixin
+    _G.__stack_cls = mixin
 end
 
 local function mt_index(mixin, field)
