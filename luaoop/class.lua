@@ -42,10 +42,9 @@ local function class_mixin_call(method, class, obj, ...)
     for _, mixin in ipairs(class.__mixins) do
         local mixin_base_func = rawget(mixin.__methods, method)
         if mixin_base_func then
-            local stack = obj.__stack
-            obj.__stack = mixin
+            local _<close> = _G.__stack
+            _G.__stack = mixin
             mixin_base_func(obj, ...)
-            obj.__stack = stack
         end
     end
 end
@@ -147,6 +146,10 @@ local function mt_class_new(class, ...)
     end
 end
 
+local function mt_class_close(class)
+    _G.__stack = class
+end
+
 local function mt_class_index(class, method)
     return class.__vtbl[method]
 end
@@ -158,21 +161,19 @@ local function mt_class_newindex(class, method, valfunc)
     end
     if ssub(method, 1, 1) ~= "_" or ssub(method, 1, 2) == "__" then
         class.__vtbl[method] = function(obj, ...)
-            local stack = obj.__stack
-            obj.__stack = class
-            local _<close> = setmetatable({}, { __close = function() obj.__stack = stack end })
+            local _<close> = _G.__stack
+            _G.__stack = class
             return valfunc(obj, ...)
         end
         return
     end
     class.__vtbl[method] = function(obj, ...)
-        local stack = obj.__stack
+        local stack<close> = _G.__stack
         if stack ~= class then
             print(sformat("%s's method %s is private method.", obj.__name, method))
             return
         end
-        obj.__stack = class
-        local _<close> = setmetatable({}, { __close = function() obj.__stack = stack end})
+        _G.__stack = class
         return valfunc(obj, ...)
     end
 end
@@ -189,6 +190,7 @@ end
 
 local classMT = {
     __call = mt_class_new,
+    __close = mt_class_close,
     __index = mt_class_index,
     __newindex = mt_class_newindex
 }
@@ -286,4 +288,6 @@ function class_review()
     return review
 end
 
+local null = { __name = "null" }
+_G.__stack = setmetatable(null, { __close = function() _G.__stack = null end})
 _ENV.__classes = class_tpls

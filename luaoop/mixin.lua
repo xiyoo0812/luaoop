@@ -34,23 +34,22 @@ local function tab_copy(src, dst)
     return ndst
 end
 
-local function mixin_call(mixin, stack, method, obj, ...)
+local function mixin_call(mixin, method, obj, ...)
     local mixin_method = mixin[method]
     if mixin_method then
-        obj.__stack = mixin
-        local _<close> = setmetatable({}, { __close = function() obj.__stack = stack end })
+        local _<close> = _G.__stack
+        _G.__stack = mixin
         return mixin_method(obj, ...)
     end
 end
 
 local function invoke(class, obj, method, ...)
-    -- local super = obj.__super
-    -- if super then
-    --     invoke(super, obj, method, ...)
-    -- end
-    local master = obj.__stack
+    local super = class.__super
+    if super then
+        invoke(super, obj, method, ...)
+    end
     for _, mixin in ipairs(class.__mixins) do
-        local ok, err = xpcall(mixin_call, dtraceback, mixin, master, method, obj, ...)
+        local ok, err = xpcall(mixin_call, dtraceback, mixin, method, obj, ...)
         if not ok then
             error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__source, method, err))
         end
@@ -59,15 +58,14 @@ end
 
 --返回true表示所有接口都完成
 local function collect(class, obj, method, ...)
-    local super = obj.__super
+    local super = class.__super
     if super then
         if not collect(super, obj, method, ...) then
             return false
         end
     end
-    local master = obj.__stack
     for _, mixin in ipairs(class.__mixins) do
-        local ok, err = xpcall(mixin_call, dtraceback, mixin, master, method, obj, ...)
+        local ok, err = xpcall(mixin_call, dtraceback, mixin, method, obj, ...)
         if not ok then
             error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__source, method, err))
             return false
@@ -102,19 +100,18 @@ local function delegate_func(class, mixin, method)
         end
         --接口代理
         vtbl[method] = function(obj, ...)
-            return mixin_call(mixin, obj.__stack, method, obj, ...)
+            return mixin_call(mixin, method, obj, ...)
         end
         return
     end
     --私有接口代理
     if not class[method] then
         vtbl[method] = function(obj, ...)
-            local stack = obj.__stack
-            if mixin ~= stack then
+            if mixin ~= _G.__stack then
                 print(sformat("%s's method %s is private method.", obj.__name, method))
                 return
             end
-            return mixin_call(mixin, stack, method, obj, ...)
+            return mixin_call(mixin, method, obj, ...)
         end
     end
 end
@@ -176,11 +173,15 @@ function implemented(class, ...)
     delegate(class, ...)
 end
 
-local function index(mixin, field)
+local function mt_close(mixin)
+    _G.__stack = mixin
+end
+
+local function mt_index(mixin, field)
     return mixin.__methods[field]
 end
 
-local function newindex(mixin, field, value)
+local function mt_newindex(mixin, field, value)
     mixin.__methods[field] = value
     --新增方法代理
     for _, class in pairs(mixin.__owners) do
@@ -189,8 +190,9 @@ local function newindex(mixin, field, value)
 end
 
 local mixinMT = {
-    __index = index,
-    __newindex = newindex,
+    __close = mt_close,
+    __index = mt_index,
+    __newindex = mt_newindex,
 }
 
 local function mixin_tostring(mixin)
