@@ -113,7 +113,7 @@ local function object_tostring(obj)
     if type(obj.tostring) == "function" then
         return object:tostring()
     end
-    return sformat("class(%s)[%s]", obj.__addr, obj.__source)
+    return sformat("%s[%s]", obj.__name, obj.__addr)
 end
 
 local function object_constructor(class)
@@ -206,7 +206,7 @@ local function class_constructor(class, super, ...)
     local info = dgetinfo(2, "S")
     local source = info.short_src
     local class_tpl = class_tpls[source]
-    local class_name = "class:" .. sgmatch(source, ".+[/\\](.+).lua")()
+    local class_name = sformat("class:%s", sgmatch(source, ".+[/\\](.+).lua")())
     if not class_tpl then
         local vtbl = {
             __class = class,
@@ -228,7 +228,6 @@ local function class_constructor(class, super, ...)
         class.__props = {}
         class.__mixins = {}
         class.__vtbl = vtbl
-        class.__name = class_name
         class_tpl = setmetatable(class, classMT)
         implemented(class, ...)
         class_tpls[source] = class_tpl

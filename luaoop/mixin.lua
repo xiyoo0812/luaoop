@@ -195,10 +195,6 @@ local mixinMT = {
     __newindex = mt_newindex,
 }
 
-local function mixin_tostring(mixin)
-    return sformat("mixin:%s", mixin.__source)
-end
-
 --接口定义函数
 function mixin(super)
     local info = dgetinfo(2, "S")
@@ -211,8 +207,7 @@ function mixin(super)
             __methods = {},
             __super = super,
             __source = source,
-            __tostring = mixin_tostring,
-            __name = "mixin:" .. sgmatch(source, ".+[/\\](.+).lua")()
+            __name = sformat("mixin:%s", sgmatch(source, ".+[/\\](.+).lua")())
         }
         if super then
             mixino.__props = tab_copy(super.__props)
