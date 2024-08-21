@@ -20,6 +20,7 @@ local xpcall        = xpcall
 local ssub          = string.sub
 local dgetinfo      = debug.getinfo
 local sformat       = string.format
+local sgmatch       = string.gmatch
 local setmetatable  = setmetatable
 local dtraceback    = debug.traceback
 
@@ -33,36 +34,43 @@ local function tab_copy(src, dst)
     return ndst
 end
 
-local function invoke(class, object, method, ...)
-    if class.__super then
-        invoke(class.__super, object, method, ...)
+local function mixin_call(mixin, stack, method, obj, ...)
+    local mixin_method = mixin[method]
+    if mixin_method then
+        obj.__stack = mixin
+        local _<close> = setmetatable({}, { __close = function() obj.__stack = stack end })
+        return mixin_method(obj, ...)
     end
+end
+
+local function invoke(class, obj, method, ...)
+    -- local super = obj.__super
+    -- if super then
+    --     invoke(super, obj, method, ...)
+    -- end
+    local master = obj.__stack
     for _, mixin in ipairs(class.__mixins) do
-        local mixin_method = mixin[method]
-        if mixin_method then
-            local ok, err = xpcall(mixin_method, dtraceback, object, ...)
-            if not ok then
-                error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__source, method, err))
-            end
+        local ok, err = xpcall(mixin_call, dtraceback, mixin, master, method, obj, ...)
+        if not ok then
+            error(sformat("mixin: %s invoke '%s' failed: %s.", mixin.__source, method, err))
         end
     end
 end
 
 --返回true表示所有接口都完成
-local function collect(class, object, method, ...)
-    if class.__super then
-        if not collect(class.__super, object, method, ...) then
+local function collect(class, obj, method, ...)
+    local super = obj.__super
+    if super then
+        if not collect(super, obj, method, ...) then
             return false
         end
     end
+    local master = obj.__stack
     for _, mixin in ipairs(class.__mixins) do
-        local mixin_method = mixin[method]
-        if mixin_method then
-            local ok, err = xpcall(mixin_method, dtraceback, object, ...)
-            if not ok then
-                error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__source, method, err))
-                return false
-            end
+        local ok, err = xpcall(mixin_call, dtraceback, mixin, master, method, obj, ...)
+        if not ok then
+            error(sformat("mixin: %s collect '%s' failed: %s.", mixin.__source, method, err))
+            return false
         end
     end
     return true
@@ -81,6 +89,36 @@ local function has_prop(oopo, name)
     return false
 end
 
+local function delegate_func(class, mixin, method)
+    if ssub(method, 1, 2) == "__" then
+        return
+    end
+    --下划线前缀方法不代理
+    local vtbl = class.__vtbl
+    if ssub(method, 1, 1) ~= "_" then
+        if vtbl[method] then
+            print(sformat("the mixin method %s has repeat defined.", method))
+            return
+        end
+        --接口代理
+        vtbl[method] = function(obj, ...)
+            return mixin_call(mixin, obj.__stack, method, obj, ...)
+        end
+        return
+    end
+    --私有接口代理
+    if not class[method] then
+        vtbl[method] = function(obj, ...)
+            local stack = obj.__stack
+            if mixin ~= stack then
+                print(sformat("%s's method %s is private method.", obj.__name, method))
+                return
+            end
+            return mixin_call(mixin, stack, method, obj, ...)
+        end
+    end
+end
+
 --代理一个组件
 local function delegate_one(class, mixin)
     if mixin.__delegate then
@@ -92,16 +130,7 @@ local function delegate_one(class, mixin)
         end
     end
     for method in pairs(mixin.__methods) do
-        --下划线前缀方法不代理
-        if ssub(method, 1, 1) ~= "_" then
-            if class[method] then
-                print(sformat("the mixin method %s has repeat defined.", method))
-            end
-            --接口代理
-            class[method] = function(...)
-                return mixin[method](...)
-            end
-        end
+        delegate_func(class, mixin, method)
     end
     local cmixins = class.__mixins
     local mowners = mixin.__owners
@@ -132,14 +161,15 @@ end
 
 --代理一个类的所有接口，并检测接口是否实现
 function implemented(class, ...)
+    local vtbl = class.__vtbl
     --定义委托接口，在声明后添加委托
-    class.delegate = delegate
+    vtbl.delegate = delegate
     --调用所有mixin的接口
-    class.invoke = function(object, method, ...)
+    vtbl.invoke = function(object, method, ...)
         invoke(object.__class, object, method, ...)
     end
     --调用所有mixin的接口，并收集结果
-    class.collect = function(object, method, ...)
+    vtbl.collect = function(object, method, ...)
         return collect(object.__class, object, method, ...)
     end
     --委托声明的mixins给class
@@ -154,11 +184,7 @@ local function newindex(mixin, field, value)
     mixin.__methods[field] = value
     --新增方法代理
     for _, class in pairs(mixin.__owners) do
-        if not class[field] then
-            class[field] = function(...)
-                return mixin[field](...)
-            end
-        end
+        delegate_func(class, mixin, field)
     end
 end
 
@@ -184,6 +210,7 @@ function mixin(super)
             __super = super,
             __source = source,
             __tostring = mixin_tostring,
+            __name = "mixin:" .. sgmatch(source, ".+[/\\](.+).lua")()
         }
         if super then
             mixino.__props = tab_copy(super.__props)
