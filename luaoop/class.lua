@@ -216,7 +216,7 @@ end
 
 local function mt_object_tostring(obj)
     if type(obj.tostring) == "function" then
-        return object:tostring()
+        return obj:tostring()
     end
     return sformat("%s[%s]", obj.__name, obj.__addr)
 end
