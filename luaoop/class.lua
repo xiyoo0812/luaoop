@@ -58,6 +58,15 @@ local function class_mixin_call(method, class, obj, ...)
     end
 end
 
+local function object_reload(class, obj)
+    local super = class.__super
+    if super then
+        object_reload(super, obj)
+    end
+    class_mixin_call("__reload", class, obj)
+    class_raw_call("__reload", class, obj)
+end
+
 local function object_init(class, obj, ...)
     local super = class.__super
     if super then
@@ -140,7 +149,9 @@ end
 local function mt_class_new(class, ...)
     if rawget(class, "__singleton") then
         local obj = rawget(class, "__inst")
-        if not obj then
+        if obj then
+            object_reload(class, obj)
+        else
             obj = object_constructor(class)
             rawset(class, "__inst", obj)
             rawset(class, "inst", function()
