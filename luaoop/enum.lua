@@ -52,8 +52,8 @@ end
 
 local function enum_newindex(emobj, field, value)
     local vlist = emobj.__vlist
-    if vlist[field] then
-        print("enum %s redefine field %s!", emobj.__name, field)
+    if vlist[field] and vlist[field] ~= value then
+        print(sformat("enum %s redefine field %s!", emobj.__name, field))
     end
     vlist[field] = value
     if type(value) == "number" then
@@ -95,7 +95,7 @@ local function new(ems, name, base, ...)
     local eobj = lists[name]
     if eobj then
         if eobj.__source ~= source then
-            print("enum %s redefined! source:%s", name, source)
+            print(sformat("enum %s redefined! source:%s", name, source))
         end
     else
         eobj = { __name = name, __source = source }

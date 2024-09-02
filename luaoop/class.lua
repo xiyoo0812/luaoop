@@ -17,6 +17,16 @@ local setmetatable = setmetatable
 --类模板
 local class_tpls = _ENV.__classes or {}
 
+--栈对象
+local stack_nil = { __name = "null" }
+setmetatable(stack_nil, { __close = function() _G.__stack_cls = stack_nil end})
+
+local function class_stack(cls)
+    local old = _G.__stack_cls
+    _G.__stack_cls = cls
+    return old
+end
+
 local function deep_copy(src, dst)
     local ndst = dst or {}
     for key, value in pairs(src or {}) do
@@ -31,44 +41,48 @@ local function deep_copy(src, dst)
     return ndst
 end
 
-local function class_raw_call(method, class, object, ...)
-    local func = rawget(class.__vtbl, method)
-    if type(func) == "function" then
-        func(object, ...)
+local function class_raw_call(method, class, obj, ...)
+    local class_base_func = rawget(class.__vtbl, method)
+    if class_base_func then
+        class_base_func(obj, ...)
     end
 end
 
-local function class_mixin_call(method, class, object, ...)
+local function class_mixin_call(method, class, obj, ...)
     for _, mixin in ipairs(class.__mixins) do
-        local func = rawget(mixin.__methods, method)
-        if type(func) == "function" then
-            func(object, ...)
+        local mixin_base_func = rawget(mixin.__methods, method)
+        if mixin_base_func then
+            local _<close> = class_stack(mixin)
+            mixin_base_func(obj, ...)
         end
     end
 end
 
-local function object_init(class, object, ...)
-    if class.__super then
-        object_init(class.__super, object, ...)
+local function object_init(class, obj, ...)
+    local super = class.__super
+    if super then
+        object_init(super, obj, ...)
     end
-    class_raw_call("__init", class, object, ...)
-    class_mixin_call("__init", class, object, ...)
-    return object
+    class_raw_call("__init", class, obj, ...)
+    class_mixin_call("__init", class, obj, ...)
+    return obj
 end
 
-local function object_release(class, object, ...)
-    class_mixin_call("__release", class, object, ...)
-    class_raw_call("__release", class, object, ...)
-    if class.__super then
-        object_release(class.__super, object, ...)
+local function object_release(class, obj, ...)
+    class_mixin_call("__release", class, obj, ...)
+    class_raw_call("__release", class, obj, ...)
+    local super = class.__super
+    if super then
+        object_release(super, obj, ...)
     end
 end
 
-local function object_defer(class, object, ...)
-    class_mixin_call("__defer", class, object, ...)
-    class_raw_call("__defer", class, object, ...)
-    if class.__super then
-        object_defer(class.__super, object, ...)
+local function object_defer(class, obj, ...)
+    class_mixin_call("__defer", class, obj, ...)
+    class_raw_call("__defer", class, obj, ...)
+    local super = class.__super
+    if super then
+        object_defer(super, obj, ...)
     end
 end
 
@@ -80,25 +94,26 @@ local function clone_prop(args)
     return deep_copy(arg)
 end
 
-local function object_props(class, object)
-    if class.__super then
-        object_props(class.__super, object)
+local function object_props(class, obj)
+    local super = class.__super
+    if super then
+        object_props(super, obj)
     end
     for name, args in pairs(class.__props) do
-        object[name] = clone_prop(args)
+        obj[name] = clone_prop(args)
     end
     for _, mixin in ipairs(class.__mixins) do
         for name, args in pairs(mixin.__props) do
-            object[name] = clone_prop(args)
+            obj[name] = clone_prop(args)
         end
     end
 end
 
-local function object_tostring(object)
-    if type(object.tostring) == "function" then
-        return object:tostring()
+local function object_tostring(obj)
+    if type(obj.tostring) == "function" then
+        return obj:tostring()
     end
-    return sformat("class(%s)[%s]", object.__addr, object.__source)
+    return sformat("%s[%s]", obj.__name, obj.__addr)
 end
 
 local function object_constructor(class)
@@ -124,28 +139,50 @@ end
 
 local function mt_class_new(class, ...)
     if rawget(class, "__singleton") then
-        local object = rawget(class, "__inst")
-        if not object then
-            object = object_constructor(class)
-            rawset(class, "__inst", object)
+        local obj = rawget(class, "__inst")
+        if not obj then
+            obj = object_constructor(class)
+            rawset(class, "__inst", obj)
             rawset(class, "inst", function()
-                return object
+                return obj
             end)
-            object_init(class, object, ...)
+            object_init(class, obj, ...)
         end
-        return object
+        return obj
     else
-        local object = object_constructor(class)
-        return object_init(class, object, ...)
+        local obj = object_constructor(class)
+        return object_init(class, obj, ...)
     end
 end
 
-local function mt_class_index(class, field)
-    return class.__vtbl[field]
+local function mt_class_close(class)
+    _G.__stack_cls = class
 end
 
-local function mt_class_newindex(class, field, value)
-    class.__vtbl[field] = value
+local function mt_class_index(class, method)
+    return class.__vtbl[method]
+end
+
+local function mt_class_newindex(class, method, valfunc)
+    if type(valfunc) ~= "function" then
+        class.__vtbl[method] = valfunc
+        return
+    end
+    if ssub(method, 1, 1) ~= "_" or ssub(method, 1, 2) == "__" then
+        class.__vtbl[method] = function(...)
+            local _<close> = class_stack(class)
+            return valfunc(...)
+        end
+        return
+    end
+    class.__vtbl[method] = function(...)
+        local stack<close> = class_stack(class)
+        if stack ~= class then
+            print(sformat("%s's method %s is private method.", class.__name, method))
+            return
+        end
+        return valfunc(...)
+    end
 end
 
 local function mt_object_release(obj)
@@ -160,6 +197,7 @@ end
 
 local classMT = {
     __call = mt_class_new,
+    __close = mt_class_close,
     __index = mt_class_index,
     __newindex = mt_class_newindex
 }
@@ -168,11 +206,13 @@ local function class_constructor(class, super, ...)
     local info = dgetinfo(2, "S")
     local source = info.short_src
     local class_tpl = class_tpls[source]
+    local class_name = sformat("class:%s", sgmatch(source, ".+[/\\](.+).lua")())
     if not class_tpl then
         local vtbl = {
             __class = class,
             __super = super,
             __source = source,
+            __name = class_name,
             __tostring = object_tostring,
             super = object_super,
             source = object_source,
@@ -188,7 +228,6 @@ local function class_constructor(class, super, ...)
         class.__props = {}
         class.__mixins = {}
         class.__vtbl = vtbl
-        class.__name = sgmatch(source, ".+/(.+).lua")()
         class_tpl = setmetatable(class, classMT)
         implemented(class, ...)
         class_tpls[source] = class_tpl
@@ -212,29 +251,8 @@ function is_class(class)
     return classMT == getmetatable(class)
 end
 
-function classof(object)
-    return object.__class
-end
-
-function is_subclass(class, super)
-    while class do
-        if class == super then
-            return true
-        end
-        class = rawget(class, "__super")
-    end
-    return false
-end
-
-function instanceof(object, class)
-    if not object or not class then
-        return false
-    end
-    local obj_class = object.__class
-    if obj_class then
-        return is_subclass(obj_class, class)
-    end
-    return false
+function classof(obj)
+    return obj.__class
 end
 
 function conv_class(name)
@@ -256,3 +274,4 @@ function class_review()
 end
 
 _ENV.__classes = class_tpls
+_ENV.__stack_cls = stack_nil
