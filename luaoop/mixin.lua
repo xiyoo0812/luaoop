@@ -91,7 +91,7 @@ local function delegate_func(class, mixin, method)
     if ssub(method, 1, 2) == "__" then
         return
     end
-    --下划线前缀方法不代理
+    --代理常规接口
     local vtbl = class.__vtbl
     if ssub(method, 1, 1) ~= "_" then
         if vtbl[method] then

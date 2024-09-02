@@ -4,6 +4,8 @@ require "luaoop.class"
 require "luaoop.mixin"
 require "luaoop.property"
 
+require "test.oop_enum"
+
 local Mix = require("test.oop_mix")
 local Base = require("test.oop_base")
 
