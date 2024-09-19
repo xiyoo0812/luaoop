@@ -1,3 +1,5 @@
+DEBUG = true
+
 --oop_test.lua
 require "luaoop.enum"
 require "luaoop.class"

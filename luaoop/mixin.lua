@@ -102,7 +102,7 @@ local function delegate_func(class, mixin, method)
     --代理常规接口
     local vtbl = class.__vtbl
     if vtbl[method] then
-        warn(sformat("the mixin method %s has repeat defined.", method))
+        print(sformat("the mixin method %s has repeat defined.", method))
         return
     end
     if ssub(method, 1, 1) ~= "_" then
@@ -123,7 +123,7 @@ local function delegate_one(class, mixin)
     end
     for name in pairs(mixin.__props) do
         if has_prop(class, name) then
-            warn(sformat("the mixin default %s has repeat defined.", name))
+            print(sformat("the mixin default %s has repeat defined.", name))
         end
     end
     for method in pairs(mixin.__methods) do
@@ -195,7 +195,7 @@ local mixinMT = {
 --接口定义函数
 function mixin(super)
     local info = dgetinfo(2, "S")
-    local source = info.short_src
+    local source = info.source
     local mixin_tpl = mixin_tpls[source]
     if not mixin_tpl then
         local mixino = {
@@ -220,7 +220,7 @@ _ENV.__mixins = mixin_tpls
 
 --调试模式下，加入部分OOP规则检查
 ---------------------------------------------------------------------------------------------------
-if os.getenv("DEBUG") then
+if DEBUG then
     mixinMT.__close = function(mixin)
         _G.__stack_cls = mixin
     end
@@ -237,7 +237,7 @@ if os.getenv("DEBUG") then
     mixin_private_func = function(mixin, method)
         return function(...)
             if mixin ~= _G.__stack_cls then
-                warn(sformat("%s's method %s is private method.", mixin.__name, method))
+                print(sformat("%s's method %s is private method.", mixin.__name, method))
                 return
             end
             return mixin_call(mixin, method, ...)

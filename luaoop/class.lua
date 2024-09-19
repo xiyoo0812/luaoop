@@ -201,7 +201,7 @@ local classMT = {
 
 local function class_constructor(class, super, ...)
     local info = dgetinfo(2, "S")
-    local source = info.short_src
+    local source = info.source
     local class_tpl = class_tpls[source]
     local class_name = sformat("class:%s", sgmatch(source, ".+[/\\](.+).lua")())
     if not class_tpl then
@@ -274,7 +274,7 @@ _ENV.__classes = class_tpls
 
 --调试模式下，加入部分OOP规则检查
 ---------------------------------------------------------------------------------------------------
-if os.getenv("DEBUG") then
+if DEBUG then
     --栈对象
     local stack_nil = { __name = "null" }
     setmetatable(stack_nil, { __close = function() _G.__stack_cls = stack_nil end})
@@ -318,7 +318,7 @@ if os.getenv("DEBUG") then
         return function(...)
             local stack<close> = class_stack(class)
             if stack ~= class then
-                warn(sformat("%s's method %s is private method.", class.__name, method))
+                print(sformat("%s's method %s is private method.", class.__name, method))
                 return
             end
             return valfunc(...)
