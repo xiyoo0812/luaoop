@@ -27,19 +27,27 @@ local dtraceback    = debug.traceback
 local mixin_tpls    = _ENV.__mixins or {}
 
 local function tab_copy(src, dst)
-    local ndst = dst or {}
     for field, value in pairs(src or {}) do
-        ndst[field] = value
+        dst[field] = value
     end
-    return ndst
 end
 
 local function mixin_call(mixin, method, ...)
     local mixin_method = mixin[method]
     if mixin_method then
-        local _<close> = _G.__stack_cls
-        _G.__stack_cls = mixin
         return mixin_method(...)
+    end
+end
+
+local function mixin_public_func(mixin, method)
+    return function(...)
+        return mixin_call(mixin, method, ...)
+    end
+end
+
+local function mixin_private_func(mixin, method)
+    return function(...)
+        return mixin_call(mixin, method, ...)
     end
 end
 
@@ -93,26 +101,18 @@ local function delegate_func(class, mixin, method)
     end
     --代理常规接口
     local vtbl = class.__vtbl
+    if vtbl[method] then
+        warn(sformat("the mixin method %s has repeat defined.", method))
+        return
+    end
     if ssub(method, 1, 1) ~= "_" then
-        if vtbl[method] then
-            print(sformat("the mixin method %s has repeat defined.", method))
-            return
-        end
         --接口代理
-        vtbl[method] = function(...)
-            return mixin_call(mixin, method, ...)
-        end
+        vtbl[method] = mixin_public_func(mixin, method)
         return
     end
     --私有接口代理
     if not class[method] then
-        vtbl[method] = function(...)
-            if mixin ~= _G.__stack_cls then
-                print(sformat("%s's method %s is private method.", mixin.__name, method))
-                return
-            end
-            return mixin_call(mixin, method, ...)
-        end
+        vtbl[method] = mixin_private_func(mixin, method)
     end
 end
 
@@ -123,7 +123,7 @@ local function delegate_one(class, mixin)
     end
     for name in pairs(mixin.__props) do
         if has_prop(class, name) then
-            print(sformat("the mixin default %s has repeat defined.", name))
+            warn(sformat("the mixin default %s has repeat defined.", name))
         end
     end
     for method in pairs(mixin.__methods) do
@@ -173,10 +173,6 @@ function implemented(class, ...)
     delegate(class, ...)
 end
 
-local function mt_close(mixin)
-    _G.__stack_cls = mixin
-end
-
 local function mt_index(mixin, field)
     return mixin.__methods[field]
 end
@@ -185,12 +181,13 @@ local function mt_newindex(mixin, field, value)
     mixin.__methods[field] = value
     --新增方法代理
     for _, class in pairs(mixin.__owners) do
-        delegate_func(class, mixin, field)
+        if not class[field] then
+            delegate_func(class, mixin, field)
+        end
     end
 end
 
 local mixinMT = {
-    __close = mt_close,
     __index = mt_index,
     __newindex = mt_newindex,
 }
@@ -210,8 +207,8 @@ function mixin(super)
             __name = sformat("mixin:%s", sgmatch(source, ".+[/\\](.+).lua")())
         }
         if super then
-            mixino.__props = tab_copy(super.__props)
-            mixino.__methods = tab_copy(super.__methods)
+            tab_copy(super.__props, mixino.__props)
+            tab_copy(super.__methods, mixino.__methods)
         end
         mixin_tpl = setmetatable(mixino, mixinMT)
         mixin_tpls[source] = mixin_tpl
@@ -220,3 +217,30 @@ function mixin(super)
 end
 
 _ENV.__mixins = mixin_tpls
+
+--调试模式下，加入部分OOP规则检查
+---------------------------------------------------------------------------------------------------
+if os.getenv("DEBUG") then
+    mixinMT.__close = function(mixin)
+        _G.__stack_cls = mixin
+    end
+
+    mixin_call = function(mixin, method, ...)
+        local mixin_method = mixin[method]
+        if mixin_method then
+            local _<close> = _G.__stack_cls
+            _G.__stack_cls = mixin
+            return mixin_method(...)
+        end
+    end
+
+    mixin_private_func = function(mixin, method)
+        return function(...)
+            if mixin ~= _G.__stack_cls then
+                warn(sformat("%s's method %s is private method.", mixin.__name, method))
+                return
+            end
+            return mixin_call(mixin, method, ...)
+        end
+    end
+end
