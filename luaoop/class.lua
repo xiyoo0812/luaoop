@@ -1,104 +1,92 @@
 --class.lua
-local type      = type
-local load      = load
-local pcall     = pcall
-local pairs     = pairs
-local ipairs    = ipairs
-local rawget    = rawget
-local rawset    = rawset
-local tostring  = tostring
-local ssub      = string.sub
-local sformat   = string.format
-local sgmatch   = string.gmatch
-local dgetinfo  = debug.getinfo
-local getmetatable = getmetatable
-local setmetatable = setmetatable
+local type          = type
+local load          = load
+local pcall         = pcall
+local pairs         = pairs
+local ipairs        = ipairs
+local rawget        = rawget
+local rawset        = rawset
+local tostring      = tostring
+local ssub          = string.sub
+local sformat       = string.format
+local sgmatch       = string.gmatch
+local dgetinfo      = debug.getinfo
+local tab_copy      = table.copy
+local deep_copy     = table.deepcopy
+local getmetatable  = getmetatable
+local setmetatable  = setmetatable
+local ogetenv       = os.getenv
 
 --类模板
 local class_tpls = _ENV.__classes or {}
 
-local function deep_copy(src, dst)
-    local ndst = dst or {}
-    for key, value in pairs(src or {}) do
-        if is_class(value) then
-            ndst[key] = value()
-        elseif (type(value) == "table") then
-            ndst[key] = deep_copy(value)
-        else
-            ndst[key] = value
-        end
-    end
-    return ndst
-end
-
-local function class_raw_call(method, class, object, ...)
-    local func = rawget(class.__vtbl, method)
-    if type(func) == "function" then
-        func(object, ...)
+local function class_raw_call(method, class, obj, ...)
+    local class_base_func = rawget(class.__vtbl, method)
+    if class_base_func then
+        class_base_func(obj, ...)
     end
 end
 
-local function class_mixin_call(method, class, object, ...)
+local function class_mixin_call(method, class, obj, ...)
     for _, mixin in ipairs(class.__mixins) do
-        local func = rawget(mixin.__methods, method)
-        if type(func) == "function" then
-            func(object, ...)
+        local mixin_base_func = rawget(mixin.__methods, method)
+        if mixin_base_func then
+            mixin_base_func(obj, ...)
         end
     end
 end
 
-local function object_init(class, object, ...)
-    if class.__super then
-        object_init(class.__super, object, ...)
+local function object_reload(class, obj)
+    local super = class.__super
+    if super then
+        object_reload(super, obj)
     end
-    class_raw_call("__init", class, object, ...)
-    class_mixin_call("__init", class, object, ...)
-    return object
+    class_mixin_call("__reload", class, obj)
+    class_raw_call("__reload", class, obj)
 end
 
-local function object_release(class, object, ...)
-    class_mixin_call("__release", class, object, ...)
-    class_raw_call("__release", class, object, ...)
-    if class.__super then
-        object_release(class.__super, object, ...)
+local function object_init(class, obj, ...)
+    local super = class.__super
+    if super then
+        object_init(super, obj, ...)
+    end
+    class_raw_call("__init", class, obj, ...)
+    class_mixin_call("__init", class, obj, ...)
+    return obj
+end
+
+local function object_release(class, obj, ...)
+    class_mixin_call("__release", class, obj, ...)
+    class_raw_call("__release", class, obj, ...)
+    local super = class.__super
+    if super then
+        object_release(super, obj, ...)
     end
 end
 
-local function object_defer(class, object, ...)
-    class_mixin_call("__defer", class, object, ...)
-    class_raw_call("__defer", class, object, ...)
-    if class.__super then
-        object_defer(class.__super, object, ...)
+local function object_defer(class, obj, ...)
+    class_mixin_call("__defer", class, obj, ...)
+    class_raw_call("__defer", class, obj, ...)
+    local super = class.__super
+    if super then
+        object_defer(super, obj, ...)
     end
 end
 
-local function clone_prop(args)
-    local arg = args[1]
-    if type(arg) ~= "table" or arg.__class then
-        return arg
-    end
-    return deep_copy(arg)
-end
-
-local function object_props(class, object)
-    if class.__super then
-        object_props(class.__super, object)
-    end
+local function object_props(class, obj)
     for name, args in pairs(class.__props) do
-        object[name] = clone_prop(args)
-    end
-    for _, mixin in ipairs(class.__mixins) do
-        for name, args in pairs(mixin.__props) do
-            object[name] = clone_prop(args)
+        local arg, typ = args[1], args[2]
+        if arg then
+            obj[name] = (typ ~= "table") and arg or deep_copy(arg)
         end
     end
 end
 
-local function object_tostring(object)
-    if type(object.tostring) == "function" then
-        return object:tostring()
+local function object_tostring(obj)
+    if type(obj.tostring) == "function" then
+        return obj:tostring()
     end
-    return sformat("class(%s)[%s]", object.__addr, object.__source)
+    return sformat("%s[%s]", obj.__name, obj.__addr)
 end
 
 local function object_constructor(class)
@@ -124,19 +112,21 @@ end
 
 local function mt_class_new(class, ...)
     if rawget(class, "__singleton") then
-        local object = rawget(class, "__inst")
-        if not object then
-            object = object_constructor(class)
-            rawset(class, "__inst", object)
+        local obj = rawget(class, "__inst")
+        if obj then
+            object_reload(class, obj)
+        else
+            obj = object_constructor(class)
+            rawset(class, "__inst", obj)
             rawset(class, "inst", function()
-                return object
+                return obj
             end)
-            object_init(class, object, ...)
+            object_init(class, obj, ...)
         end
-        return object
+        return obj
     else
-        local object = object_constructor(class)
-        return object_init(class, object, ...)
+        local obj = object_constructor(class)
+        return object_init(class, obj, ...)
     end
 end
 
@@ -145,6 +135,13 @@ local function mt_class_index(class, field)
 end
 
 local function mt_class_newindex(class, field, value)
+    if rawget(class.__vtbl, field) then
+        if ssub(field, 1, 2) ~= "__" and not ogetenv("HOTFIX") then
+            warn(sformat("the class %s: %s has repeat defined.", class.__name, field))
+        end
+    elseif field == "__init_static" then
+        value()
+    end
     class.__vtbl[field] = value
 end
 
@@ -166,29 +163,31 @@ local classMT = {
 
 local function class_constructor(class, super, ...)
     local info = dgetinfo(2, "S")
-    local source = info.short_src
+    local source = info.source
     local class_tpl = class_tpls[source]
+    local class_name = sformat("class:%s", sgmatch(source, ".+[/\\](.+).lua")())
     if not class_tpl then
         local vtbl = {
             __class = class,
             __super = super,
             __source = source,
+            __name = class_name,
+            __gc = mt_object_release,
+            __close = mt_object_defer,
             __tostring = object_tostring,
             super = object_super,
             source = object_source,
             address = object_address
         }
         vtbl.__index = vtbl
-        vtbl.__gc = mt_object_release
-        vtbl.__close = mt_object_defer
-        if super then
-            setmetatable(vtbl, {__index = super})
-        end
         class.__count = 0
         class.__props = {}
         class.__mixins = {}
         class.__vtbl = vtbl
-        class.__name = sgmatch(source, ".+/(.+).lua")()
+        if super then
+            tab_copy(super.__props, class.__props)
+            setmetatable(vtbl, { __index = super })
+        end
         class_tpl = setmetatable(class, classMT)
         implemented(class, ...)
         class_tpls[source] = class_tpl
@@ -212,29 +211,8 @@ function is_class(class)
     return classMT == getmetatable(class)
 end
 
-function classof(object)
-    return object.__class
-end
-
-function is_subclass(class, super)
-    while class do
-        if class == super then
-            return true
-        end
-        class = rawget(class, "__super")
-    end
-    return false
-end
-
-function instanceof(object, class)
-    if not object or not class then
-        return false
-    end
-    local obj_class = object.__class
-    if obj_class then
-        return is_subclass(obj_class, class)
-    end
-    return false
+function classof(obj)
+    return obj.__class
 end
 
 function conv_class(name)
